@@ -1,142 +1,73 @@
 #include <Wire.h>
-
-// AS5600
-#define AS5600_ADDRESS 0x36
-#define RAW_ANGLE_REG 0x0C
-unsigned int offsetRawAngle = 0;
-bool isCalibrated = false;
-
-// BH1750
+#include <AS5600.h>
 #include <BH1750.h>
-BH1750 lightSensor;
-
-// BME280
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BME280.h>
-#define SEALEVELPRESSURE_HPA (1013.25)
-Adafruit_BME280 bme;
-
-// SHT30
+#include <Adafruit_BMP085.h>
 #include <Adafruit_SHT31.h>
+
+AS5600 as5600;
+BH1750 lightMeter;
+Adafruit_BMP085 bmp;
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
 
+const int uvSensorPin = 32; 
 void setup() {
   Serial.begin(115200);
   Wire.begin();
 
-  // AS5600
-  Serial.println(F("AS5600 Ready. Type \"calibrate\" to set zero angle."));
-
-  // BH1750
-  if (!lightSensor.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
-    Serial.println(F("BH1750 not detected."));
+  if (!as5600.begin()) {
+    Serial.println("AS5600 not detected.");
   }
 
-  // BME280
-  if (!bme.begin(0x76)) {
-    Serial.println("BME280 not detected. Check wiring.");
-    while (1);
+  if (!lightMeter.begin()) {
+    Serial.println("BH1750 not detected.");
   }
 
-  // SHT31
-  if (!sht31.begin(0x44)) {
-    Serial.println("SHT31 not detected. Check wiring.");
-    while (1);
+  if (!bmp.begin()) {
+    Serial.println("BMP180 not detected.");
+  }
+
+  if (!sht31.begin(0x44)) { 
+    Serial.println("SHT30 not detected.");
   }
 }
 
 void loop() {
-  // AS5600
-  unsigned int rawAngle = readAS5600Angle();
-  if (Serial.available() > 0) {
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim();
-    if (cmd.equalsIgnoreCase("calibrate")) {
-      offsetRawAngle = rawAngle;
-      isCalibrated = true;
-      Serial.println(">> Calibrated. Current position is now set to 0°.");
-    }
-  }
+  int angle = as5600.getAngle();
+  Serial.print("AS5600 Angle: ");
+  Serial.print(angle);
+  Serial.println(" degrees");
 
-  unsigned int relativeRaw;
-  if (isCalibrated) {
-    int diff = int(rawAngle) - int(offsetRawAngle);
-    if (diff < 0) diff += 4096;
-    relativeRaw = unsigned(diff);
-  } else {
-    relativeRaw = rawAngle;
-  }
-
-  float angleDegrees = (relativeRaw / 4096.0) * 360.0;
-
-  Serial.print("AS5600 Raw: ");
-  Serial.print(rawAngle);
-  Serial.print(" → ");
-  Serial.print(angleDegrees, 2);
-  Serial.println(" °");
-
-  // BH1750
-  float lux = lightSensor.readLightLevel();
-  Serial.print("Light: ");
+  float lux = lightMeter.readLightLevel();
+  Serial.print("BH1750 Light Level: ");
   Serial.print(lux);
-  Serial.println(" lx");
+  Serial.println(" lux");
 
-  // BME280
-  Serial.print("BME280 Temp: ");
-  Serial.print(bme.readTemperature());
+  float temperature = bmp.readTemperature();
+  float pressure = bmp.readPressure();
+  Serial.print("BMP180 Temperature: ");
+  Serial.print(temperature);
   Serial.println(" *C");
+  Serial.print("BMP180 Pressure: ");
+  Serial.print(pressure);
+  Serial.println(" Pa");
 
-  Serial.print("Pressure: ");
-  Serial.print(bme.readPressure() / 100.0F);
-  Serial.println(" hPa");
-
-  Serial.print("Altitude: ");
-  Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
-  Serial.println(" m");
-
-  Serial.print("Humidity: ");
-  Serial.print(bme.readHumidity());
+  float shtTemp = sht31.readTemperature();
+  float humidity = sht31.readHumidity();
+  Serial.print("SHT30 Temperature: ");
+  Serial.print(shtTemp);
+  Serial.println(" *C");
+  Serial.print("SHT30 Humidity: ");
+  Serial.print(humidity);
   Serial.println(" %");
 
-  // SHT30
-  float t = sht31.readTemperature();
-  float h = sht31.readHumidity();
-
-  if (!isnan(t)) {
-    Serial.print("SHT31 Temp: ");
-    Serial.println(t);
-  } else {
-    Serial.println("Failed to read SHT31 temperature");
-  }
-
-  if (!isnan(h)) {
-    Serial.print("SHT31 Humidity: ");
-    Serial.println(h);
-  } else {
-    Serial.println("Failed to read SHT31 humidity");
-  }
-
-  // GUVA
-  float sensorValue = analogRead(32);
-  float sensorVoltage = sensorValue / 4095.0 * 3.3;
-  Serial.print("Analog Sensor Value: ");
-  Serial.println(sensorValue);
-  Serial.print("Analog Sensor Voltage: ");
-  Serial.print(sensorVoltage);
+  int uvRaw = analogRead(uvSensorPin);
+  float uvVoltage = (uvRaw / 4095.0) * 3.3;
+  Serial.print("GUVA-S12SD UV Raw: ");
+  Serial.print(uvRaw);
+  Serial.print(" | Voltage: ");
+  Serial.print(uvVoltage, 3);
   Serial.println(" V");
 
-  Serial.println("-----------------------------\n");
+  Serial.println("-----------------------------");
   delay(500);
-}
-
-unsigned int readAS5600Angle() {
-  Wire.beginTransmission(AS5600_ADDRESS);
-  Wire.write(RAW_ANGLE_REG);
-  Wire.endTransmission(false);
-  Wire.requestFrom(AS5600_ADDRESS, 2);
-  while (Wire.available() < 2);
-  unsigned int value = Wire.read();
-  value <<= 8;
-  value |= Wire.read();
-  return value;
 }
