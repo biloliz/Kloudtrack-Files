@@ -16,7 +16,7 @@ BH1750 lightSensor;
 #define SEALEVELPRESSURE_HPA (1013.25)
 Adafruit_BME280 bme;
 
-// SHT31
+// SHT30
 #include <Adafruit_SHT31.h>
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
 
@@ -46,7 +46,7 @@ void setup() {
 }
 
 void loop() {
-  // --- AS5600 ANGLE SENSOR ---
+  // AS5600
   unsigned int rawAngle = readAS5600Angle();
   if (Serial.available() > 0) {
     String cmd = Serial.readStringUntil('\n');
@@ -75,13 +75,13 @@ void loop() {
   Serial.print(angleDegrees, 2);
   Serial.println(" °");
 
-  // --- BH1750 LIGHT SENSOR ---
+  // BH1750
   float lux = lightSensor.readLightLevel();
   Serial.print("Light: ");
   Serial.print(lux);
   Serial.println(" lx");
 
-  // --- BME280 SENSOR ---
+  // BME280
   Serial.print("BME280 Temp: ");
   Serial.print(bme.readTemperature());
   Serial.println(" *C");
@@ -98,7 +98,7 @@ void loop() {
   Serial.print(bme.readHumidity());
   Serial.println(" %");
 
-  // --- SHT31 SENSOR ---
+  // SHT30
   float t = sht31.readTemperature();
   float h = sht31.readHumidity();
 
@@ -116,7 +116,7 @@ void loop() {
     Serial.println("Failed to read SHT31 humidity");
   }
 
-  // --- ANALOG SENSOR ON GPIO 32 ---
+  // GUVA
   float sensorValue = analogRead(32);
   float sensorVoltage = sensorValue / 4095.0 * 3.3;
   Serial.print("Analog Sensor Value: ");
@@ -126,10 +126,9 @@ void loop() {
   Serial.println(" V");
 
   Serial.println("-----------------------------\n");
-  delay(1000);
+  delay(500);
 }
 
-// --- FUNCTION TO READ AS5600 ANGLE ---
 unsigned int readAS5600Angle() {
   Wire.beginTransmission(AS5600_ADDRESS);
   Wire.write(RAW_ANGLE_REG);
