@@ -15,7 +15,7 @@ void setup() {
   Serial.begin(115200);
   Wire.begin(21, 22);
 
-  for (uint8_t ch = 0; ch < 3; ch++) {
+  for (uint8_t ch = 2; ch < 5; ch++) {
     tcaSelect(ch);
     delay(10); 
     if (!sht.begin(0x44)) {
@@ -29,7 +29,7 @@ void setup() {
 }
 
 void loop() {
-  for (uint8_t ch = 0; ch < 3; ch++) {
+  for (uint8_t ch = 2; ch < 5; ch++) {
     tcaSelect(ch);
     delay(10);
 
@@ -48,9 +48,9 @@ void loop() {
       Serial.println(" | Failed to read data");
     }
 
-    delay(1000);
+    delay(500);
   }
 
   Serial.println("-------------------------");
-  delay(2000);
+  delay(1000);
 }
