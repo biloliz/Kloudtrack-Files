@@ -1,123 +1,114 @@
 #include <Wire.h>
-#include <Adafruit_BMP085.h>
 #include <BH1750.h>
+#include <Adafruit_BME280.h>
+#include <Adafruit_BMP085.h>
 #include <Adafruit_SHT31.h>
 
-// BMP180
-Adafruit_BMP085 bmp;
-
-// BH1750
-BH1750 lightSensor;
-
-// SHT31
-Adafruit_SHT31 sht31 = Adafruit_SHT31();
-float tempOffset = -1.1;
-float humidOffset = -4.0;
-
-// AS5600
+#define SEALEVELPRESSURE_HPA 1013.25
 #define AS5600_ADDRESS 0x36
-#define RAW_ANGLE_REG 0x0C
+#define RAW_ANGLE_REG  0x0C
+
+// Sensor objects
+BH1750 lightSensor;
+Adafruit_BME280 bme;
+Adafruit_BMP085 bmp;
+Adafruit_SHT31 sht;
+
+bool bhFound = false, bmeFound = false, bmpFound = false, shtFound = false;
 unsigned int offsetRawAngle = 0;
 bool isCalibrated = false;
 
 void setup() {
-  Wire.begin();
   Serial.begin(115200);
-  delay(10);
+  Wire.begin();
 
-  // BMP180
-  if (!bmp.begin()) {
-    Serial.println("BMP180 Sensor not found!");
-    while (1);
-  }
+  // Initialize I2C sensors
+  bhFound  = lightSensor.begin();
+  bmpFound = bmp.begin();
+ // bmeFound = bme.begin(0x76);
+  shtFound = sht.begin(0x44);
 
-  // BH1750
-  if (!lightSensor.begin()) {
-    Serial.println("BH1750 Sensor not found!");
-    while (1);
-  }
-
-  // SHT31
-  Serial.println("Initializing SHT31...");
-  if (!sht31.begin(0x44)) {
-    Serial.println("Couldn't find SHT31!");
-    while (1);
-  }
-
-  Serial.println(F("All sensors initialized. Type \"calibrate\" to zero AS5600 angle."));
+  Serial.println("\n--- Sensor Check ---");
+  Serial.println(bhFound  ? "BH1750: OK" : "BH1750: Not Found");
+  Serial.println(bmpFound ? "BMP180: OK" : "BMP180: Not Found");
+  Serial.println(bmeFound ? "BME280: OK" : "BME280: Not Found");
+  Serial.println(shtFound ? "SHT31: OK" : "SHT31: Not Found");
+  Serial.println("AS5600: Will test below\n");
 }
 
 void loop() {
-  // --- BMP180 ---
-  Serial.print("Pressure: ");
-  Serial.print(bmp.readPressure() / 100.0);
-  Serial.print(" hPa | Temp (BMP180): ");
-  Serial.print(bmp.readTemperature());
-  Serial.print(" °C");
+  // Read and show sensors
+  if (bhFound) {
+    float lux = lightSensor.readLightLevel();
+    Serial.printf("Light: %.2f lx\n", lux);
+  }
 
-  // --- BH1750 ---
-  float lux = lightSensor.readLightLevel();
-  Serial.print(" | Light: ");
-  Serial.print(lux);
-  Serial.print(" lx");
+  if (bmpFound) {
+    Serial.printf("BMP180 Temp: %.2f °C\nPressure: %.2f hPa\n",
+                  bmp.readTemperature(), bmp.readPressure() / 100.0);
+  }
 
-  // --- SHT31 ---
-  float t = sht31.readTemperature();
-  float h = sht31.readHumidity();
+  if (shtFound) {
+    float t = sht.readTemperature();
+    float h = sht.readHumidity();
+    if (!isnan(t)) Serial.printf("SHT31 Temp: %.2f °C\n", t);
+    if (!isnan(h)) Serial.printf("SHT31 Humidity: %.2f %%\n", h);
+  }
 
-  if (!isnan(t)) t += tempOffset;
-  else t = 0.0;
-
-  if (!isnan(h)) h += humidOffset;
-  else h = 0.0;
-
-  Serial.print(" | Temp (SHT31): ");
-  Serial.print(t);
-  Serial.print(" °C | Hum: ");
-  Serial.print(h);
-  Serial.print(" %");
-
+//  if (bmeFound) {
+  //  Serial.printf("BME280 Temp: %.2f °C, Humidity: %.2f %%, Pressure: %.2f hPa\n",
+ //                 bme.readTemperature(),
+ /*                 bme.readHumidity(),
+                  bme.readPressure() / 100.0F);
+  }
+*/
   // --- AS5600 ---
-  unsigned int rawAngle = readAS5600Angle();
-  if (Serial.available() > 0) {
+  readAS5600AngleInDegrees();
+
+  Serial.println("----------------------------\n");
+  delay(3000);
+}
+
+void readAS5600AngleInDegrees() {
+  unsigned int rawAngle = readAS5600Raw();
+
+  if (rawAngle == 0xFFFF) {
+    Serial.println("AS5600: Not responding");
+    return;
+  }
+
+  // Calibration via serial
+  if (Serial.available()) {
     String cmd = Serial.readStringUntil('\n');
     cmd.trim();
     if (cmd.equalsIgnoreCase("calibrate")) {
       offsetRawAngle = rawAngle;
       isCalibrated = true;
-      Serial.println("\n>> Calibrated. Current position is now set to 0°.\n");
+      Serial.println("AS5600: Calibrated to 0°");
     }
   }
 
-  unsigned int relativeRaw = isCalibrated
-    ? ((int(rawAngle) - int(offsetRawAngle) + 4096) % 4096)
-    : rawAngle;
+  unsigned int relativeRaw;
+  if (isCalibrated) {
+    int diff = int(rawAngle) - int(offsetRawAngle);
+    if (diff < 0) diff += 4096;
+    relativeRaw = unsigned(diff);
+  } else {
+    relativeRaw = rawAngle;
+  }
 
   float degrees = (relativeRaw / 4096.0) * 360.0;
-  Serial.print(" | Angle: ");
-  Serial.print(degrees, 2);
-  Serial.print(" °");
-
-  // --- Analog Voltage (A32) ---
-  float sensorValue = analogRead(32);
-  float sensorVoltage = sensorValue / 4095.0 * 3.3;
-  Serial.print(" | A32: ");
-  Serial.print(sensorVoltage, 2);
-  Serial.println(" V");
-
-  delay(500);
+  Serial.printf("AS5600 Angle: %.2f °\n", degrees);
 }
 
-unsigned int readAS5600Angle() {
+unsigned int readAS5600Raw() {
   Wire.beginTransmission(AS5600_ADDRESS);
   Wire.write(RAW_ANGLE_REG);
-  Wire.endTransmission(false);
+  if (Wire.endTransmission(false) != 0) return 0xFFFF;
 
   Wire.requestFrom(AS5600_ADDRESS, 2);
-  while (Wire.available() < 2);
+  if (Wire.available() < 2) return 0xFFFF;
 
-  unsigned int value = Wire.read();
-  value <<= 8;
-  value |= Wire.read();
-  return value;
+  unsigned int value = Wire.read() << 8 | Wire.read();
+  return value & 0x0FFF; // Keep only the 12-bit value
 }
