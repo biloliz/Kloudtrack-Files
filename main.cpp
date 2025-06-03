@@ -11,6 +11,8 @@ BH1750 lightSensor;
 
 // SHT31
 Adafruit_SHT31 sht31 = Adafruit_SHT31();
+float tempOffset = -1.1;
+float humidOffset = -4.0;
 
 // AS5600
 #define AS5600_ADDRESS 0x36
@@ -62,10 +64,17 @@ void loop() {
   // --- SHT31 ---
   float t = sht31.readTemperature();
   float h = sht31.readHumidity();
+
+  if (!isnan(t)) t += tempOffset;
+  else t = 0.0;
+
+  if (!isnan(h)) h += humidOffset;
+  else h = 0.0;
+
   Serial.print(" | Temp (SHT31): ");
-  Serial.print(isnan(t) ? 0.0 : t);
+  Serial.print(t);
   Serial.print(" °C | Hum: ");
-  Serial.print(isnan(h) ? 0.0 : h);
+  Serial.print(h);
   Serial.print(" %");
 
   // --- AS5600 ---
