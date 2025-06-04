@@ -55,11 +55,11 @@ void loop() {
     if (!isnan(h)) Serial.printf("SHT31 Humidity: %.2f %%\n", h);
   }
 
-//  if (bmeFound) {
-  //  Serial.printf("BME280 Temp: %.2f °C, Humidity: %.2f %%, Pressure: %.2f hPa\n",
- //                 bme.readTemperature(),
- /*                 bme.readHumidity(),
-                  bme.readPressure() / 100.0F);
+/* if (bmeFound) {
+  Serial.printf("BME280 Temp: %.2f °C\n Humidity: %.2f %%\nPressure: %.2f hPa\n",
+  bme.readTemperature(),
+  bme.readHumidity(),
+  bme.readPressure() / 100.0F);
   }
 */
   // --- AS5600 ---
