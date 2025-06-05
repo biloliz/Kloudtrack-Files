@@ -1,9 +1,10 @@
 #include <Wire.h>
 #include <Adafruit_BME280.h>
 
-#define TCA_ADDR 0x70
-Adafruit_BME280 bme; // I2C
+#define TCA_ADDR 0x70  // I2C address of TCA9548A multiplexer
+Adafruit_BME280 bme;   // BME280 sensor object
 
+// Function to select the TCA9548A channel
 void tcaSelect(uint8_t channel) {
   if (channel > 7) return;
   Wire.beginTransmission(TCA_ADDR);
@@ -13,13 +14,13 @@ void tcaSelect(uint8_t channel) {
 
 void setup() {
   Serial.begin(115200);
-  Wire.begin(21, 22); // Adjust SDA/SCL if needed
+  Wire.begin(21, 22); // Use GPIO21 for SDA and GPIO22 for SCL (ESP32)
 
   for (uint8_t ch = 2; ch < 5; ch++) {
     tcaSelect(ch);
     delay(10);
 
-    if (!bme.begin(0x76)) { // Default I2C address of BME280 (can be 0x76 or 0x77)
+    if (!bme.begin(0x76)) {  // Check if BME280 is connected on this channel
       Serial.print("BME280 not found on channel ");
       Serial.println(ch);
     } else {
